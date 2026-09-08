@@ -101,6 +101,9 @@ void App::InitImGui() {
     ImGui::CreateContext();
     ImGuiIO& io = ImGui::GetIO();
     io.IniFilename = nullptr;
+    // Enables Alt-key mnemonic navigation of the menu bar (the '&' in menu
+    // labels below marks the underlined/mnemonic letter).
+    io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
 
     ImGui::StyleColorsDark();
 
@@ -124,34 +127,34 @@ void App::DrawMenuBar() {
     if (!ImGui::BeginMainMenuBar())
         return;
 
-    if (ImGui::BeginMenu("GLTeapot")) {
-        if (ImGui::MenuItem("Add a teapot", "Ctrl+N"))
+    if (ImGui::BeginMenu("&GLTeapot")) {
+        if (ImGui::MenuItem("&Add a teapot", "Ctrl+N"))
             scene_.AddTeapot();
         ImGui::Separator();
-        if (ImGui::MenuItem("Quit", "Ctrl+Q"))
+        if (ImGui::MenuItem("&Quit", "Ctrl+Q"))
             glfwSetWindowShouldClose(window_, GLFW_TRUE);
         ImGui::EndMenu();
     }
 
-    if (ImGui::BeginMenu("Settings")) {
-        ImGui::MenuItem("Perspective", nullptr, &scene_.settings.perspective);
-        ImGui::MenuItem("FPS display", nullptr, &scene_.settings.showFps);
-        ImGui::MenuItem("Filled polygons", nullptr, &scene_.settings.filled);
-        ImGui::MenuItem("Lighting", nullptr, &scene_.settings.lighting);
-        ImGui::MenuItem("Backface culling", nullptr, &scene_.settings.culling);
-        ImGui::MenuItem("Z-buffered", nullptr, &scene_.settings.zbuffer);
-        ImGui::MenuItem("Gouraud shading", nullptr, &scene_.settings.gouraud);
-        ImGui::MenuItem("Fog", nullptr, &scene_.settings.fog);
+    if (ImGui::BeginMenu("&Settings")) {
+        ImGui::MenuItem("&Perspective", nullptr, &scene_.settings.perspective);
+        ImGui::MenuItem("&FPS display", nullptr, &scene_.settings.showFps);
+        ImGui::MenuItem("F&illed polygons", nullptr, &scene_.settings.filled);
+        ImGui::MenuItem("&Lighting", nullptr, &scene_.settings.lighting);
+        ImGui::MenuItem("&Backface culling", nullptr, &scene_.settings.culling);
+        ImGui::MenuItem("&Z-buffered", nullptr, &scene_.settings.zbuffer);
+        ImGui::MenuItem("&Gouraud shading", nullptr, &scene_.settings.gouraud);
+        ImGui::MenuItem("F&og", nullptr, &scene_.settings.fog);
         ImGui::Separator();
-        if (ImGui::MenuItem("Limit FPS to refresh rate", nullptr, &scene_.settings.limitFps))
+        if (ImGui::MenuItem("Limit FPS to &refresh rate", nullptr, &scene_.settings.limitFps))
             glfwSwapInterval(scene_.settings.limitFps ? 1 : 0);
         ImGui::EndMenu();
     }
 
-    if (ImGui::BeginMenu("Lights")) {
-        DrawLightSubmenu("Upper center", 0);
-        DrawLightSubmenu("Lower left", 1);
-        DrawLightSubmenu("Right", 2);
+    if (ImGui::BeginMenu("&Lights")) {
+        DrawLightSubmenu("&Upper center", 0);
+        DrawLightSubmenu("Lo&wer left", 1);
+        DrawLightSubmenu("&Right", 2);
         ImGui::EndMenu();
     }
 
@@ -167,13 +170,13 @@ void App::DrawLightSubmenu(const char* name, int lightIndex) {
         if (ImGui::MenuItem(label, nullptr, current == c))
             scene_.SetLight(lightIndex, c);
     };
-    item("Off", LightColor::Off);
+    item("&Off", LightColor::Off);
     ImGui::Separator();
-    item("White", LightColor::White);
-    item("Yellow", LightColor::Yellow);
-    item("Blue", LightColor::Blue);
-    item("Red", LightColor::Red);
-    item("Green", LightColor::Green);
+    item("&White", LightColor::White);
+    item("&Yellow", LightColor::Yellow);
+    item("&Blue", LightColor::Blue);
+    item("&Red", LightColor::Red);
+    item("&Green", LightColor::Green);
 
     ImGui::EndMenu();
 }
@@ -195,11 +198,11 @@ void App::DrawObjectContextMenu() {
             if (ImGui::MenuItem(label, nullptr, obj.color == c))
                 obj.color = c;
         };
-        colorItem("White", ObjectColor::White);
-        colorItem("Yellow", ObjectColor::Yellow);
-        colorItem("Blue", ObjectColor::Blue);
-        colorItem("Red", ObjectColor::Red);
-        colorItem("Green", ObjectColor::Green);
+        colorItem("&White", ObjectColor::White);
+        colorItem("&Yellow", ObjectColor::Yellow);
+        colorItem("&Blue", ObjectColor::Blue);
+        colorItem("&Red", ObjectColor::Red);
+        colorItem("&Green", ObjectColor::Green);
 
         ImGui::Separator();
 
@@ -207,9 +210,9 @@ void App::DrawObjectContextMenu() {
             if (ImGui::MenuItem(label, nullptr, obj.solidity == s))
                 obj.solidity = s;
         };
-        solidItem("Solid", Solidity::Solid);
-        solidItem("Translucent", Solidity::Translucent);
-        solidItem("Transparent", Solidity::Transparent);
+        solidItem("&Solid", Solidity::Solid);
+        solidItem("&Translucent", Solidity::Translucent);
+        solidItem("Trans&parent", Solidity::Transparent);
     }
 
     ImGui::EndPopup();
