@@ -1,7 +1,9 @@
 #include "App.h"
 
+#include <cctype>
 #include <cmath>
 #include <cstdio>
+#include <string>
 
 #include <GLFW/glfw3.h>
 
@@ -12,6 +14,104 @@
 namespace {
 constexpr float kDisplayScale = 1.0f;
 constexpr float kZRatio = 10.0f;
+
+// Dear ImGui doesn't parse '&' mnemonics on its own (unlike Win32/MFC menus),
+// so we do it ourselves: an "&x" in a label means "x" is this item's
+// Alt-key mnemonic. This strips the '&' for display and reports which
+// ImGuiKey it names.
+struct MnemonicLabel {
+    std::string display;
+    int mnemonicByteIndex = -1;
+    ImGuiKey mnemonicKey = ImGuiKey_None;
+};
+
+MnemonicLabel ParseMnemonic(const char* raw) {
+    MnemonicLabel result;
+    for (const char* p = raw; *p != '\0';) {
+        if (*p == '&' && *(p + 1) != '\0') {
+            char c = *(p + 1);
+            char upper = static_cast<char>(std::toupper(static_cast<unsigned char>(c)));
+            if (upper >= 'A' && upper <= 'Z') {
+                result.mnemonicByteIndex = static_cast<int>(result.display.size());
+                result.mnemonicKey = static_cast<ImGuiKey>(ImGuiKey_A + (upper - 'A'));
+            }
+            result.display.push_back(c);
+            p += 2;
+        } else {
+            result.display.push_back(*p);
+            p += 1;
+        }
+    }
+    return result;
+}
+
+// A top-level, horizontal menu-bar entry: Alt+<mnemonic> opens it, and while
+// Alt is held its mnemonic letter is underlined. Must be closed with
+// ImGui::EndMenu() exactly like a plain BeginMenu(), if it returns true.
+bool BeginMnemonicMenuBar(const char* rawLabel) {
+    MnemonicLabel parsed = ParseMnemonic(rawLabel);
+    ImGuiIO& io = ImGui::GetIO();
+
+    if (io.KeyAlt && parsed.mnemonicKey != ImGuiKey_None && ImGui::IsKeyPressed(parsed.mnemonicKey, false))
+        ImGui::OpenPopup(parsed.display.c_str());
+
+    if (parsed.mnemonicByteIndex >= 0 && io.KeyAlt) {
+        ImDrawList* drawList = ImGui::GetWindowDrawList();
+        ImVec2 cursor = ImGui::GetCursorScreenPos();
+        const char* text = parsed.display.c_str();
+        float preWidth = ImGui::CalcTextSize(text, text + parsed.mnemonicByteIndex).x;
+        float charWidth = ImGui::CalcTextSize(text + parsed.mnemonicByteIndex, text + parsed.mnemonicByteIndex + 1).x;
+        float x = cursor.x + ImGui::GetStyle().ItemSpacing.x * 0.5f + preWidth;
+        float y = cursor.y + ImGui::GetTextLineHeight() + 1.0f;
+        drawList->AddLine(ImVec2(x, y), ImVec2(x + charWidth, y), ImGui::GetColorU32(ImGuiCol_Text));
+    }
+
+    return ImGui::BeginMenu(parsed.display.c_str());
+}
+
+// A nested (vertical, dropdown) submenu, e.g. Lights > Upper center. Same
+// Alt+<mnemonic>-opens behavior, but no underline: Dear ImGui doesn't expose
+// enough of its internal column layout to place it correctly here.
+bool BeginMnemonicMenu(const char* rawLabel) {
+    MnemonicLabel parsed = ParseMnemonic(rawLabel);
+    ImGuiIO& io = ImGui::GetIO();
+
+    if (io.KeyAlt && parsed.mnemonicKey != ImGuiKey_None && ImGui::IsKeyPressed(parsed.mnemonicKey, false))
+        ImGui::OpenPopup(parsed.display.c_str());
+
+    return ImGui::BeginMenu(parsed.display.c_str());
+}
+
+// Shared by the two leaf-item helpers below: true if this item's mnemonic
+// key was just pressed while Alt is held. Only meaningful while textually
+// inside the enclosing menu's open BeginMenu()/BeginPopup() block, which is
+// the only place these are ever called from.
+bool MnemonicKeyPressed(const MnemonicLabel& parsed) {
+    return parsed.mnemonicKey != ImGuiKey_None && ImGui::GetIO().KeyAlt &&
+        ImGui::IsKeyPressed(parsed.mnemonicKey, false);
+}
+
+// A plain action item (no checkmark), e.g. "Quit" or a color choice in a
+// radio-style group. Returns true if clicked or its Alt+mnemonic fired;
+// `selected` only controls whether it's drawn with a checkmark.
+bool MnemonicMenuItem(const char* rawLabel, const char* shortcut = nullptr, bool selected = false) {
+    MnemonicLabel parsed = ParseMnemonic(rawLabel);
+    bool activated = ImGui::MenuItem(parsed.display.c_str(), shortcut, selected);
+    return activated || MnemonicKeyPressed(parsed);
+}
+
+// A checkbox-style item bound to a bool, e.g. a Settings toggle: activating
+// it (by click or Alt+mnemonic) flips *value, matching plain
+// ImGui::MenuItem(label, shortcut, bool*)'s own auto-toggle behavior.
+bool MnemonicCheckboxItem(const char* rawLabel, const char* shortcut, bool* value) {
+    MnemonicLabel parsed = ParseMnemonic(rawLabel);
+    bool activated = ImGui::MenuItem(parsed.display.c_str(), shortcut, *value);
+    if (MnemonicKeyPressed(parsed))
+        activated = true;
+    if (activated)
+        *value = !*value;
+    return activated;
+}
 }
 
 App::App() = default;
@@ -127,31 +227,31 @@ void App::DrawMenuBar() {
     if (!ImGui::BeginMainMenuBar())
         return;
 
-    if (ImGui::BeginMenu("&GLTeapot")) {
-        if (ImGui::MenuItem("&Add a teapot", "Ctrl+N"))
+    if (BeginMnemonicMenuBar("&GLTeapot")) {
+        if (MnemonicMenuItem("&Add a teapot", "Ctrl+N"))
             scene_.AddTeapot();
         ImGui::Separator();
-        if (ImGui::MenuItem("&Quit", "Ctrl+Q"))
+        if (MnemonicMenuItem("&Quit", "Ctrl+Q"))
             glfwSetWindowShouldClose(window_, GLFW_TRUE);
         ImGui::EndMenu();
     }
 
-    if (ImGui::BeginMenu("&Settings")) {
-        ImGui::MenuItem("&Perspective", nullptr, &scene_.settings.perspective);
-        ImGui::MenuItem("&FPS display", nullptr, &scene_.settings.showFps);
-        ImGui::MenuItem("F&illed polygons", nullptr, &scene_.settings.filled);
-        ImGui::MenuItem("&Lighting", nullptr, &scene_.settings.lighting);
-        ImGui::MenuItem("&Backface culling", nullptr, &scene_.settings.culling);
-        ImGui::MenuItem("&Z-buffered", nullptr, &scene_.settings.zbuffer);
-        ImGui::MenuItem("&Gouraud shading", nullptr, &scene_.settings.gouraud);
-        ImGui::MenuItem("F&og", nullptr, &scene_.settings.fog);
+    if (BeginMnemonicMenuBar("&Settings")) {
+        MnemonicCheckboxItem("&Perspective", nullptr, &scene_.settings.perspective);
+        MnemonicCheckboxItem("&FPS display", nullptr, &scene_.settings.showFps);
+        MnemonicCheckboxItem("F&illed polygons", nullptr, &scene_.settings.filled);
+        MnemonicCheckboxItem("&Lighting", nullptr, &scene_.settings.lighting);
+        MnemonicCheckboxItem("&Backface culling", nullptr, &scene_.settings.culling);
+        MnemonicCheckboxItem("&Z-buffered", nullptr, &scene_.settings.zbuffer);
+        MnemonicCheckboxItem("&Gouraud shading", nullptr, &scene_.settings.gouraud);
+        MnemonicCheckboxItem("F&og", nullptr, &scene_.settings.fog);
         ImGui::Separator();
-        if (ImGui::MenuItem("Limit FPS to &refresh rate", nullptr, &scene_.settings.limitFps))
+        if (MnemonicCheckboxItem("Limit FPS to &refresh rate", nullptr, &scene_.settings.limitFps))
             glfwSwapInterval(scene_.settings.limitFps ? 1 : 0);
         ImGui::EndMenu();
     }
 
-    if (ImGui::BeginMenu("&Lights")) {
+    if (BeginMnemonicMenuBar("&Lights")) {
         DrawLightSubmenu("&Upper center", 0);
         DrawLightSubmenu("Lo&wer left", 1);
         DrawLightSubmenu("&Right", 2);
@@ -162,12 +262,12 @@ void App::DrawMenuBar() {
 }
 
 void App::DrawLightSubmenu(const char* name, int lightIndex) {
-    if (!ImGui::BeginMenu(name))
+    if (!BeginMnemonicMenu(name))
         return;
 
     LightColor current = scene_.GetLight(lightIndex);
     auto item = [&](const char* label, LightColor c) {
-        if (ImGui::MenuItem(label, nullptr, current == c))
+        if (MnemonicMenuItem(label, nullptr, current == c))
             scene_.SetLight(lightIndex, c);
     };
     item("&Off", LightColor::Off);
@@ -195,7 +295,7 @@ void App::DrawObjectContextMenu() {
         Object& obj = scene_.Objects()[contextMenuObject_];
 
         auto colorItem = [&](const char* label, ObjectColor c) {
-            if (ImGui::MenuItem(label, nullptr, obj.color == c))
+            if (MnemonicMenuItem(label, nullptr, obj.color == c))
                 obj.color = c;
         };
         colorItem("&White", ObjectColor::White);
@@ -207,7 +307,7 @@ void App::DrawObjectContextMenu() {
         ImGui::Separator();
 
         auto solidItem = [&](const char* label, Solidity s) {
-            if (ImGui::MenuItem(label, nullptr, obj.solidity == s))
+            if (MnemonicMenuItem(label, nullptr, obj.solidity == s))
                 obj.solidity = s;
         };
         solidItem("&Solid", Solidity::Solid);
