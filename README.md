@@ -29,8 +29,8 @@ cmake --build build -j
 
 ### Linux
 
-Install the usual OpenGL/X11/Wayland development packages GLFW needs, e.g.
-on Debian/Ubuntu:
+Install the usual OpenGL/X11 development packages GLFW needs, e.g. on
+Debian/Ubuntu:
 
 ```sh
 sudo apt install build-essential cmake libgl1-mesa-dev \
@@ -39,6 +39,13 @@ sudo apt install build-essential cmake libgl1-mesa-dev \
 
 (Or, to skip building GLFW from source, `sudo apt install libglfw3-dev` —
 CMake will use it automatically if `find_package(glfw3)` succeeds.)
+
+When CMake fetches and builds GLFW itself, it only builds GLFW's X11
+backend (Wayland is off by default here, since building it requires
+`wayland-scanner`/`wayland-protocols`/`libxkbcommon-dev` for no benefit on
+an X11-only machine). This also works fine under XWayland. If you do want
+a native Wayland backend, install those packages and reconfigure with
+`-DGLFW_BUILD_WAYLAND=ON`.
 
 ```sh
 cmake -S . -B build -DCMAKE_BUILD_TYPE=Release

@@ -18,6 +18,11 @@ if(NOT glfw3_FOUND)
   set(GLFW_BUILD_TESTS OFF CACHE BOOL "" FORCE)
   set(GLFW_BUILD_DOCS OFF CACHE BOOL "" FORCE)
   set(GLFW_INSTALL OFF CACHE BOOL "" FORCE)
+  # Default the Wayland backend off: building it requires wayland-scanner
+  # (and the wayland-protocols/libxkbcommon dev packages) even on X11-only
+  # machines, none of which is otherwise needed. Pass
+  # -DGLFW_BUILD_WAYLAND=ON yourself if you do want it.
+  set(GLFW_BUILD_WAYLAND OFF CACHE BOOL "")
   FetchContent_Declare(
     glfw
     GIT_REPOSITORY https://github.com/glfw/glfw.git
